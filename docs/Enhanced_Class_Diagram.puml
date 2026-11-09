@@ -1,0 +1,304 @@
+@startuml JobLink_Class_Diagram
+
+' ============================================
+' JobLink - Intelligent Recruitment Platform
+' Enhanced Class Diagram
+' ============================================
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor<<Abstract>> LightYellow
+    BorderColor<<Abstract>> Orange
+    BackgroundColor<<Service>> LightBlue
+    BorderColor<<Service>> Blue
+    BackgroundColor<<Controller>> LightGreen
+    BorderColor<<Controller>> Green
+}
+
+' ============================================
+' CORE ENTITIES
+' ============================================
+
+abstract class User {
+    - id: Integer {PK}
+    - name: String
+    - email: String {Unique}
+    - password: String {Hashed}
+    - role: String {Seeker/Recruiter}
+    - headline: String
+    - location: String
+    - createdAt: Timestamp
+    - updatedAt: Timestamp
+    __
+    + findOne(email: String): User
+    + findByPk(id: Integer): User
+    + create(userData: Object): User
+    + matchPassword(password: String): Boolean
+    {abstract} + getDashboard(): Object
+}
+
+class JobSeeker {
+    - applications: Application[]
+    __
+    + applyForJob(jobId: Integer, resume: File): Application
+    + getMyApplications(): Application[]
+    + trackApplicationStatus(applicationId: Integer): String
+    + uploadResume(file: File): String
+    + smartFilterJobs(resume: File): Job[]
+    + getDashboard(): Object
+}
+
+class Recruiter {
+    - companyName: String
+    - companyProfile: String
+    - postedJobs: Job[]
+    __
+    + postJob(jobData: Object): Job
+    + getMyJobs(): Job[]
+    + getJobApplications(jobId: Integer): Application[]
+    + updateApplicationStatus(appId: Integer, status: String): Boolean
+    + getRecruiterStats(): Object
+    + getDashboard(): Object
+}
+
+' ============================================
+' JOB ENTITY
+' ============================================
+
+class Job {
+    - id: Integer {PK}
+    - recruiterId: Integer {FK}
+    - title: String
+    - description: Text
+    - company: String
+    - location: String
+    - requirements: String[]
+    - salary: String
+    - type: String {Full-time/Part-time/Contract/Internship}
+    - status: String {Active/Closed/Draft}
+    - createdAt: Timestamp
+    - updatedAt: Timestamp
+    __
+    + create(jobData: Object): Job
+    + findAll(filters: Object): Job[]
+    + findByPk(id: Integer): Job
+    + update(jobData: Object): Boolean
+    + delete(): Boolean
+    + getApplications(): Application[]
+    + getApplicationCount(): Integer
+}
+
+' ============================================
+' APPLICATION ENTITY
+' ============================================
+
+class Application {
+    - id: Integer {PK}
+    - jobId: Integer {FK}
+    - applicantId: Integer {FK}
+    - resumePath: String
+    - resumeText: Text
+    - status: String {Applied/Screening/Interview/Hired/Rejected}
+    - aiScore: Integer {0-100}
+    - aiFeedback: Text
+    - createdAt: Timestamp
+    - updatedAt: Timestamp
+    __
+    + create(applicationData: Object): Application
+    + findByJobId(jobId: Integer): Application[]
+    + findByApplicantId(applicantId: Integer): Application[]
+    + updateStatus(status: String): Boolean
+    + checkDuplicate(jobId: Integer, applicantId: Integer): Boolean
+}
+
+' ============================================
+' AI SERVICE LAYER
+' ============================================
+
+class AIService <<Service>> {
+    - geminiApiKey: String
+    - model: GenerativeModel
+    __
+    + {static} extractTextFromPDF(filePath: String): String
+    + {static} analyzeResume(resumeText: String, jobDescription: String): AIAnalysis
+    + {static} extractSkills(resumeText: String): String[]
+    + {static} generateMatchScore(resume: String, job: String): Integer
+    + {static} generateFeedback(resume: String, job: String): String
+}
+
+class AIAnalysis {
+    + matchScore: Integer {0-100}
+    + feedback: String
+    + strengths: String[]
+    + missingSkills: String[]
+    + recommendations: String[]
+}
+
+' ============================================
+' CONTROLLER LAYER
+' ============================================
+
+class AuthController <<Controller>> {
+    + registerUser(req: Request, res: Response): void
+    + loginUser(req: Request, res: Response): void
+    + getMe(req: Request, res: Response): void
+    - generateToken(userId: Integer): String
+}
+
+class JobController <<Controller>> {
+    + createJob(req: Request, res: Response): void
+    + getAllJobs(req: Request, res: Response): void
+    + getRecruiterJobs(req: Request, res: Response): void
+    + smartFilterJobs(req: Request, res: Response): void
+    + getRecruiterStats(req: Request, res: Response): void
+}
+
+class ApplicationController <<Controller>> {
+    + applyForJob(req: Request, res: Response): void
+    + getMyApplications(req: Request, res: Response): void
+    + getJobApplications(req: Request, res: Response): void
+    + updateApplicationStatus(req: Request, res: Response): void
+}
+
+' ============================================
+' MIDDLEWARE & UTILITIES
+' ============================================
+
+class AuthMiddleware {
+    + protect(req: Request, res: Response, next: Function): void
+    + authorize(role: String): Function
+    + verifyToken(token: String): Object
+}
+
+class FileUploadMiddleware {
+    - storage: MulterStorage
+    - fileFilter: Function
+    __
+    + uploadResume(req: Request, res: Response, next: Function): void
+    + validatePDF(file: File): Boolean
+    + validateFileSize(file: File): Boolean
+}
+
+class DatabaseService {
+    - pool: PostgresPool
+    - connectionString: String
+    __
+    + {static} connectDB(): void
+    + {static} initTables(): void
+    + {static} query(sql: String, params: Array): Result
+}
+
+' ============================================
+' ATS (Applicant Tracking System)
+' ============================================
+
+class ATSKanban {
+    - jobId: Integer
+    - columns: KanbanColumn[]
+    __
+    + getApplicationsByStatus(jobId: Integer): Object
+    + moveApplication(appId: Integer, newStatus: String): Boolean
+    + getColumnCount(status: String): Integer
+    + filterByScore(minScore: Integer): Application[]
+}
+
+class KanbanColumn {
+    - status: String
+    - applications: Application[]
+    - count: Integer
+    __
+    + addApplication(application: Application): void
+    + removeApplication(applicationId: Integer): void
+    + getCount(): Integer
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+' Inheritance
+User <|-- JobSeeker
+User <|-- Recruiter
+
+' Associations - User to Job
+Recruiter "1" --> "0..*" Job : posts >
+Job "1" --> "1" Recruiter : posted by <
+
+' Associations - Job to Application
+Job "1" --> "0..*" Application : receives >
+Application "*" --> "1" Job : applies to <
+
+' Associations - User to Application
+JobSeeker "1" --> "0..*" Application : submits >
+Application "*" --> "1" JobSeeker : submitted by <
+
+' Service Dependencies
+Application ..> AIService : uses
+ApplicationController ..> AIService : uses
+JobController ..> AIService : uses
+
+' Controller to Model
+AuthController ..> User : manages
+JobController ..> Job : manages
+ApplicationController ..> Application : manages
+ApplicationController ..> Job : queries
+
+' Middleware Dependencies
+AuthController ..> AuthMiddleware : uses
+JobController ..> AuthMiddleware : uses
+ApplicationController ..> AuthMiddleware : uses
+ApplicationController ..> FileUploadMiddleware : uses
+
+' Database Dependencies
+User ..> DatabaseService : persists to
+Job ..> DatabaseService : persists to
+Application ..> DatabaseService : persists to
+
+' AI Analysis
+AIService ..> AIAnalysis : returns
+Application "1" --> "0..1" AIAnalysis : contains
+
+' ATS System
+Recruiter ..> ATSKanban : uses
+ATSKanban "1" --> "5" KanbanColumn : contains
+KanbanColumn "1" --> "*" Application : displays
+
+' Composition
+ATSKanban *-- KanbanColumn
+
+' Notes
+note right of User
+  Abstract base class for all users.
+  Password is hashed using bcrypt.
+  JWT token used for authentication.
+end note
+
+note right of AIService
+  Powered by Google Gemini AI.
+  Analyzes resume vs job description.
+  Generates match score (0-100).
+  Extracts skills from resume text.
+end note
+
+note right of Application
+  Unique constraint on (jobId, applicantId)
+  prevents duplicate applications.
+  AI analysis runs automatically on submission.
+end note
+
+note bottom of ATSKanban
+  Kanban Board Columns:
+  - Applied
+  - Screening
+  - Interview
+  - Hired
+  - Rejected
+end note
+
+note left of Job
+  Requirements stored as
+  PostgreSQL TEXT[] array.
+  Status: Active/Closed/Draft
+end note
+
+@enduml

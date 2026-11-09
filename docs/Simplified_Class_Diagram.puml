@@ -1,0 +1,81 @@
+@startuml JobLink_Simplified_Class_Diagram
+
+' ============================================
+' JobLink - Simplified Class Diagram
+' For Quick Reference and Presentations
+' ============================================
+
+skinparam classAttributeIconSize 0
+
+' ============================================
+' CORE ENTITIES
+' ============================================
+
+abstract class User {
+    - id: Integer
+    - name: String
+    - email: String
+    - password: String
+    - role: String
+    __
+    + login()
+    + register()
+}
+
+class JobSeeker {
+    + applyForJob()
+    + viewApplications()
+}
+
+class Recruiter {
+    - companyName: String
+    __
+    + postJob()
+    + viewApplications()
+}
+
+class Job {
+    - id: Integer
+    - title: String
+    - description: Text
+    - requirements: String[]
+    - salary: String
+    - status: String
+    __
+    + create()
+    + update()
+}
+
+class Application {
+    - id: Integer
+    - resumePath: String
+    - status: String
+    - aiScore: Integer
+    - aiFeedback: Text
+    __
+    + submit()
+    + updateStatus()
+}
+
+class AIService {
+    + analyzeResume()
+    + extractSkills()
+    + generateScore()
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+User <|-- JobSeeker
+User <|-- Recruiter
+
+Recruiter "1" --> "*" Job : posts
+Job "1" --> "*" Application : receives
+JobSeeker "1" --> "*" Application : submits
+
+Application ..> AIService : uses
+Application --> Job
+Application --> JobSeeker
+
+@enduml
